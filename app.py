@@ -1,3 +1,4 @@
+import csv
 import re
 from pathlib import Path
 
@@ -9,23 +10,23 @@ st.set_page_config(page_title="Self-Healing Materials Discovery", page_icon="�
 DATA_PATH = Path(__file__).parent / "data" / "self_healing_materials.csv"
 
 ALIASES = {
-    "id": "ID", "material/polymer name": "Material", "material name": "Material", "material": "Material",
-    "polymer family": "Polymer family", "healing mechanism": "Mechanism", "mechanism": "Mechanism",
-    "external stimulus required": "Stimulus", "stimulus": "Stimulus",
-    "healing temp (°c)": "Healing temperature", "healing temperature": "Healing temperature", "temperature": "Healing temperature",
-    "healing temp notes": "Healing temperature notes", "healing time (hrs)": "Healing time", "healing time": "Healing time",
-    "healing efficiency (%)": "Healing efficiency", "healing efficiency": "Healing efficiency", "efficiency": "Healing efficiency",
-    "efficiency measured property": "Efficiency property", "tensile strength (mpa)": "Tensile strength", "elongation at break (%)": "Elongation",
-    "flexibility category": "Flexibility", "application area": "Application", "main advantages": "Advantages",
-    "main limitations/trade-offs": "Limitations", "supporting evidence": "Evidence", "paper title": "Paper title",
-    "authors": "Authors", "year": "Year", "journal": "Journal", "doi/link": "DOI", "data collector": "Data collector",
-    "date collected": "Date collected", "verification status": "Verification status", "notes/uncertainty flags": "Notes",
+    "id":"ID", "material/polymer name":"Material", "material name":"Material", "material":"Material",
+    "polymer family":"Polymer family", "healing mechanism":"Mechanism", "mechanism":"Mechanism",
+    "external stimulus required":"Stimulus", "stimulus":"Stimulus",
+    "healing temp (°c)":"Healing temperature", "healing temperature":"Healing temperature", "temperature":"Healing temperature",
+    "healing temp notes":"Healing temperature notes", "healing time (hrs)":"Healing time", "healing time":"Healing time",
+    "healing efficiency (%)":"Healing efficiency", "healing efficiency":"Healing efficiency", "efficiency":"Healing efficiency",
+    "efficiency measured property":"Efficiency property", "tensile strength (mpa)":"Tensile strength", "elongation at break (%)":"Elongation",
+    "flexibility category":"Flexibility", "application area":"Application", "main advantages":"Advantages",
+    "main limitations/trade-offs":"Limitations", "supporting evidence":"Evidence", "paper title":"Paper title",
+    "authors":"Authors", "year":"Year", "journal":"Journal", "doi/link":"DOI", "data collector":"Data collector",
+    "date collected":"Date collected", "verification status":"Verification status", "notes/uncertainty flags":"Notes",
 }
 
-CORE_COLUMNS = ["ID", "Material", "Polymer family", "Mechanism", "Stimulus", "Healing temperature", "Healing temperature notes",
-                "Healing time", "Healing efficiency", "Efficiency property", "Tensile strength", "Elongation", "Flexibility",
-                "Application", "Advantages", "Limitations", "Evidence", "Paper title", "Authors", "Year", "Journal", "DOI",
-                "Data collector", "Date collected", "Verification status", "Notes"]
+CORE_COLUMNS = ["ID","Material","Polymer family","Mechanism","Stimulus","Healing temperature","Healing temperature notes",
+                "Healing time","Healing efficiency","Efficiency property","Tensile strength","Elongation","Flexibility",
+                "Application","Advantages","Limitations","Evidence","Paper title","Authors","Year","Journal","DOI",
+                "Data collector","Date collected","Verification status","Notes"]
 
 
 def clean_col(c):
@@ -39,11 +40,16 @@ def numeric(v):
     return float(m.group()) if m else None
 
 
+def empty_dataset():
+    return pd.DataFrame(columns=CORE_COLUMNS + ["Efficiency value", "Temperature value", "Time value"])
+
+
 def load_dataset():
     if not DATA_PATH.exists():
-        return pd.DataFrame(columns=CORE_COLUMNS + ["Efficiency value", "Temperature value", "Time value"]), "Repository CSV missing"
+        return empty_dataset(), "Repository CSV missing"
     try:
-        raw = pd.read_csv(DATA_PATH)
+        # Python engine is more tolerant of long quoted evidence fields than the C engine.
+        raw = pd.read_csv(DATA_PATH, engine="python", quotechar='"', escapechar="\\", on_bad_lines="warn")
         raw.columns = [ALIASES.get(clean_col(c), str(c).strip()) for c in raw.columns]
         for col in CORE_COLUMNS:
             if col not in raw.columns:
@@ -54,30 +60,49 @@ def load_dataset():
         df["Efficiency value"] = df["Healing efficiency"].map(numeric)
         df["Temperature value"] = df["Healing temperature"].map(numeric)
         df["Time value"] = df["Healing time"].map(numeric)
-        return df.reset_index(drop=True), "Repository CSV"
+        if df.empty:
+            return empty_dataset(), "CSV error: no valid material records found"
+        return df.reset_index(drop=True), f"Repository CSV · {len(df)} records"
     except Exception as exc:
-        return pd.DataFrame(columns=CORE_COLUMNS + ["Efficiency value", "Temperature value", "Time value"]), f"CSV error: {exc}"
+        # Compatibility fallback for malformed legacy rows.
+        try:
+            raw = pd.read_csv(DATA_PATH, engine="python", on_bad_lines="skip")
+            raw.columns = [ALIASES.get(clean_col(c), str(c).strip()) for c in raw.columns]
+            for col in CORE_COLUMNS:
+                if col not in raw.columns:
+                    raw[col] = ""
+            df = raw[CORE_COLUMNS].fillna("").copy()
+            df["Material"] = df["Material"].astype(str).str.strip()
+            df = df[df["Material"] != ""].copy()
+            df["Efficiency value"] = df["Healing efficiency"].map(numeric)
+            df["Temperature value"] = df["Healing temperature"].map(numeric)
+            df["Time value"] = df["Healing time"].map(numeric)
+            if not df.empty:
+                return df.reset_index(drop=True), f"Repository CSV · {len(df)} records · recovered malformed rows"
+        except Exception:
+            pass
+        return empty_dataset(), f"CSV error: {exc}"
 
 
 def extract_requirements(query):
     q = query.lower()
-    req = {"max_temp": None, "min_eff": None, "max_time": None, "flexible": False, "stimulus": None, "application": None, "terms": []}
+    req = {"max_temp":None,"min_eff":None,"max_time":None,"flexible":False,"stimulus":None,"application":None,"terms":[]}
     m = re.search(r"(?:below|under|less than|at most|max(?:imum)?(?: of)?)\s*(\d+(?:\.\d+)?)\s*°?\s*c", q)
     if m: req["max_temp"] = float(m.group(1))
     m = re.search(r"(?:at least|minimum of|min|over|above|greater than)\s*(\d+(?:\.\d+)?)\s*%", q)
     if m: req["min_eff"] = float(m.group(1))
     m = re.search(r"(?:within|under|less than|in)\s*(\d+(?:\.\d+)?)\s*(hour|hours|h|day|days)", q)
     if m: req["max_time"] = float(m.group(1)) * (24 if m.group(2).startswith("day") else 1)
-    req["flexible"] = any(x in q for x in ["flexible", "stretchable", "elastic", "high flexibility"])
-    for s in ["room temperature", "autonomous", "light", "uv", "water", "pressure", "heat", "thermal"]:
+    req["flexible"] = any(x in q for x in ["flexible","stretchable","elastic","high flexibility"])
+    for s in ["room temperature","autonomous","light","uv","water","pressure","heat","thermal"]:
         if s in q:
             req["stimulus"] = "Autonomous" if s == "room temperature" else s
             break
-    for a in ["wearable electronics", "wearable sensors", "electronics", "soft robotics", "coatings", "biomedical", "sensors", "robotics", "energy", "adhesives"]:
+    for a in ["wearable electronics","wearable sensors","electronics","soft robotics","coatings","biomedical","sensors","robotics","energy","adhesives"]:
         if a in q:
             req["application"] = a
             break
-    stop = {"need", "want", "looking", "material", "polymer", "self", "healing", "that", "with", "and", "the", "for", "from", "below", "under", "least"}
+    stop = {"need","want","looking","material","polymer","self","healing","that","with","and","the","for","from","below","under","least"}
     req["terms"] = [w for w in re.findall(r"[a-z]{4,}", q) if w not in stop]
     return req
 
@@ -97,7 +122,7 @@ def rank_materials(df, req):
         if req["max_time"] is not None and time is not None:
             if time <= req["max_time"]: score += 15; reasons.append(f"reported healing time is {row['Healing time']} h")
             else: score -= 5
-        if req["flexible"] and any(x in str(row["Flexibility"]).lower() for x in ["high", "flex", "elastic", "stretch"]):
+        if req["flexible"] and any(x in str(row["Flexibility"]).lower() for x in ["high","flex","elastic","stretch"]):
             score += 10; reasons.append("recorded as flexible/stretchable")
         if req["stimulus"] and req["stimulus"].lower() in str(row["Stimulus"]).lower():
             score += 7; reasons.append(f"stimulus matches: {row['Stimulus']}")
@@ -113,7 +138,6 @@ def rank_materials(df, req):
     result["Match reasons"] = [x[1] for x in ranked]
     return result.sort_values("Match score", ascending=False).reset_index(drop=True)
 
-
 materials, dataset_source = load_dataset()
 
 st.markdown("""
@@ -124,13 +148,12 @@ st.markdown("""
 
 with st.sidebar:
     st.markdown("## 🧪 Materials Lab")
-    page = st.radio("Workspace", ["Discover", "Compare", "Dataset", "About"], label_visibility="collapsed")
+    page = st.radio("Workspace", ["Discover","Compare","Dataset","About"], label_visibility="collapsed")
     st.divider()
     st.caption("Connected research dataset")
     st.metric("Material systems", len(materials))
     st.caption(f"Source: {dataset_source}")
-    if st.button("↻ Reload repository dataset", use_container_width=True):
-        st.rerun()
+    if st.button("↻ Reload repository dataset", use_container_width=True): st.rerun()
     st.divider()
     st.caption("Evidence-first")
     st.caption("The app ranks only values present in the curated repository CSV. Missing values stay Not reported.")
@@ -138,15 +161,16 @@ with st.sidebar:
 if page == "Discover":
     st.markdown('<div class="hero"><div class="eyebrow">AI-assisted literature discovery</div><h1>Find self-healing materials for your requirements</h1><p>Describe the material you need in natural language. The app extracts constraints and ranks paper-backed records from the repository dataset.</p></div>', unsafe_allow_html=True)
     query = st.text_area("What material are you looking for?", placeholder="Example: I need a flexible self-healing polymer that heals below 60°C and recovers at least 80% of its strength.", height=120)
-    examples = ["Flexible self-healing polymer that heals below 60°C and recovers at least 80% of strength", "Room-temperature self-healing material for wearable sensors", "Self-healing material for soft robotics with high recovery"]
+    examples = ["Flexible self-healing polymer that heals below 60°C and recovers at least 80% of strength","Room-temperature self-healing material for wearable sensors","Self-healing material for soft robotics with high recovery"]
     example = st.selectbox("Example searches", ["Choose an example…"] + examples)
     if example != "Choose an example…" and not query: query = example
     if st.button("🔍 Find best matches", type="primary", use_container_width=True):
         if not query.strip(): st.warning("Enter a material requirement first.")
         elif materials.empty: st.error("The repository dataset is empty or could not be loaded.")
         else:
-            st.session_state.results = rank_materials(materials, extract_requirements(query))
-            st.session_state.req = extract_requirements(query)
+            req = extract_requirements(query)
+            st.session_state.results = rank_materials(materials, req)
+            st.session_state.req = req
     if "results" in st.session_state:
         req, results = st.session_state.req, st.session_state.results
         st.markdown("### Interpreted requirements")
@@ -162,12 +186,11 @@ if page == "Discover":
         st.markdown("### Ranked candidates")
         for _, m in results.head(12).iterrows():
             with st.container(border=True):
-                left, right = st.columns([5, 1])
+                left,right = st.columns([5,1])
                 with left:
                     st.markdown(f"#### {m['Material']}")
                     st.caption(f"{m['Polymer family']} · {m['Mechanism']} · {m['ID']}")
-                with right:
-                    st.markdown(f'<div class="score">{m["Match score"]:.0f}<span class="muted">/100</span></div><div class="muted">match</div>', unsafe_allow_html=True)
+                with right: st.markdown(f'<div class="score">{m["Match score"]:.0f}<span class="muted">/100</span></div><div class="muted">match</div>', unsafe_allow_html=True)
                 a,b,c,d = st.columns(4)
                 a.metric("Healing", str(m["Healing temperature"]) if m["Healing temperature"] != "" else "Not reported")
                 b.metric("Recovery", f"{m['Healing efficiency']}%" if m["Healing efficiency"] != "" else "Not reported")
@@ -182,6 +205,7 @@ if page == "Discover":
                     st.write(f"**Authors:** {m['Authors'] or 'Not reported'} · **Year:** {m['Year'] or 'Not reported'} · **Journal:** {m['Journal'] or 'Not reported'}")
                     st.write(f"**Efficiency measured:** {m['Efficiency property'] or 'Not reported'}")
                     st.write(f"**Evidence:** {m['Evidence'] or 'Not reported'}")
+                    st.write(f"**Verification:** {m['Verification status'] or 'Not reported'}")
                     if m["DOI"]:
                         doi = str(m["DOI"]).strip(); url = doi if doi.startswith("http") else f"https://doi.org/{doi}"
                         st.markdown(f"[Open paper / DOI]({url})")
@@ -192,37 +216,38 @@ elif page == "Compare":
     options = materials["Material"].tolist() if not materials.empty else []
     selected = st.multiselect("Select materials", options, max_selections=4)
     if selected:
-        fields = ["ID","Polymer family","Mechanism","Stimulus","Healing temperature","Healing time","Healing efficiency","Efficiency property","Tensile strength","Elongation","Flexibility","Application","Advantages","Limitations","Paper title","Year","Journal","Verification status"]
-        comp = materials[materials["Material"].isin(selected)].set_index("Material").T
-        st.dataframe(comp.loc[[f for f in fields if f in comp.index]], use_container_width=True, height=650)
+        fields=["ID","Polymer family","Mechanism","Stimulus","Healing temperature","Healing time","Healing efficiency","Efficiency property","Tensile strength","Elongation","Flexibility","Application","Advantages","Limitations","Paper title","Year","Journal","Verification status"]
+        comp=materials[materials["Material"].isin(selected)].set_index("Material").T
+        st.dataframe(comp.loc[[f for f in fields if f in comp.index]],use_container_width=True,height=650)
 
 elif page == "Dataset":
     st.markdown('<div class="hero"><div class="eyebrow">Curated literature database</div><h1>Explore the full material dataset</h1><p>The application reads this CSV directly from GitHub, so deployment does not depend on Google Sheets access.</p></div>', unsafe_allow_html=True)
-    if materials.empty:
-        st.error("No records loaded from data/self_healing_materials.csv.")
+    if materials.empty: st.error("No records loaded from data/self_healing_materials.csv.")
     else:
-        c1,c2,c3,c4 = st.columns(4)
-        c1.metric("Records", len(materials)); c2.metric("Polymer families", materials["Polymer family"].replace("", pd.NA).nunique()); c3.metric("Applications", materials["Application"].replace("", pd.NA).nunique()); c4.metric("Paper sources", materials["Paper title"].replace("", pd.NA).nunique())
-        search = st.text_input("Search all dataset fields", placeholder="PDMS, disulfide, 60°C, wearable, polyurethane...")
-        view = materials.copy()
+        c1,c2,c3,c4=st.columns(4)
+        c1.metric("Records",len(materials)); c2.metric("Polymer families",materials["Polymer family"].replace("",pd.NA).nunique()); c3.metric("Applications",materials["Application"].replace("",pd.NA).nunique()); c4.metric("Paper sources",materials["Paper title"].replace("",pd.NA).nunique())
+        search=st.text_input("Search all dataset fields",placeholder="PDMS, disulfide, 60°C, wearable, polyurethane...")
+        view=materials.copy()
         if search:
-            view = view[view.apply(lambda r: search.lower() in " ".join(map(str, r.values)).lower(), axis=1)]
-        st.dataframe(view[CORE_COLUMNS], use_container_width=True, height=680)
-        st.caption("Source of truth: data/self_healing_materials.csv in the repository. Scientific claims should be checked against the original publication before experimental use.")
+            mask=view.apply(lambda r: search.lower() in " ".join(map(str,r.values)).lower(),axis=1); view=view[mask]
+        st.dataframe(view[CORE_COLUMNS],use_container_width=True,height=680)
+        st.caption("Source of truth: the repository CSV. Scientific claims should be checked against the original publication before experimental use.")
 
 else:
     st.markdown('<div class="hero"><div class="eyebrow">Project methodology</div><h1>About the platform</h1><p>An evidence-first interface for discovering and comparing self-healing polymer systems from published research.</p></div>', unsafe_allow_html=True)
     st.markdown("""
-    ### Data pipeline
-    **Repository CSV → normalization → requirement extraction → transparent ranking → evidence-backed result cards.**
+### Data pipeline
+**Repository CSV → normalization → requirement extraction → transparent ranking → evidence-backed result cards.**
 
-    ### Hallucination controls
-    - Material properties are read from the curated CSV rather than generated by the app.
-    - Missing values remain **Not reported**.
-    - Candidate cards expose paper metadata, DOI/link and supporting evidence when available.
-    - Match score is a **relevance score**, not a prediction of experimental success.
-    - The sample EX01 record from the source dataset is intentionally excluded because its source note says it is only a sample row.
-    """)
+### Hallucination controls
+- Material properties are read from the curated dataset rather than generated.
+- Missing values remain **Not reported**.
+- Candidates expose paper metadata, DOI/link, supporting evidence and verification status when available.
+- Match score is a **relevance score**, not a prediction of experimental success.
+
+### Dataset fields
+Material/polymer name, polymer family, healing mechanism, stimulus, healing temperature/time, healing efficiency and measured property, tensile strength, elongation, flexibility, application, advantages, limitations, supporting evidence, paper metadata, DOI/link, verification status and uncertainty notes.
+""")
 
 st.divider()
 st.caption("Self-Healing Materials Discovery · Evidence-first research prototype")
