@@ -55,7 +55,7 @@ class SearchEngineTests(unittest.TestCase):
         self.assertEqual(set(result["ID"]),{"match","unknown"})
     def test_missing_criterion_does_not_reduce_score(self):
         criteria=parse_query("metal-ligand coordination and below 0°C")
-        result=rank(pd.DataFrame([sample()]),criteria,[])
+        result=rank(pd.DataFrame([sample(**{"Healing temperature":""})]),criteria,[])
         self.assertEqual(int(result.iloc[0]["Match score"]),100)
         self.assertEqual(result.iloc[0]["Coverage"],"1/2")
         self.assertEqual(result.iloc[0]["Match type"],"Potential match · incomplete data")
