@@ -20,18 +20,18 @@ export const MECH: Record<string, string[]> = {
   "chain interdiffusion": ["chain interdiffusion","chain diffusion"],
   "dynamic covalent bonds": ["dynamic covalent","covalent exchange"]
 };
-export const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[–—]/g,"-").replace(/\\s+/g," ").trim();
-export const numeric = (v: unknown): number | null => { const m=String(v ?? "").replace(/,/g,"").match(/-?\\d+(?:\\.\\d+)?/); return m ? Number(m[0]) : null; };
+export const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[–—]/g,"-").replace(/\s+/g," ").trim();
+export const numeric = (v: unknown): number | null => { const m=String(v ?? "").replace(/,/g,"").match(/-?\d+(?:\.\d+)?/); return m ? Number(m[0]) : null; };
 
 export function parseQuery(input: string): Criterion[] {
   const q=norm(input), out: Criterion[]=[];
   const mechanisms=Object.entries(MECH).filter(([,a])=>a.some(x=>q.includes(norm(x)))).map(([k])=>k);
   if(mechanisms.length) out.push({key:"Mechanism",label:"Healing mechanism",value:mechanisms,weight:2});
-  const temp=q.match(/(?:≤|<=|below|under|less than|at most|no more than|up to|maximum(?: of)?)\\s*(-?\\d+(?:\\.\\d+)?)\\s*°?\\s*c\\b/);
+  const temp=q.match(/(?:≤|<=|below|under|less than|at most|no more than|up to|maximum(?: of)?)\s*(-?\d+(?:\.\d+)?)\s*°?\s*c\b/);
   if(temp) out.push({key:"Temperature",label:"Maximum healing temperature",value:Number(temp[1]),weight:1.5});
-  const eff=q.match(/(?:≥|>=|at least|minimum(?: of)?|min(?:imum)?|over|above|greater than)\\s*(\\d+(?:\\.\\d+)?)\\s*%/);
+  const eff=q.match(/(?:≥|>=|at least|minimum(?: of)?|min(?:imum)?|over|above|greater than)\s*(\d+(?:\.\d+)?)\s*%/);
   if(eff){ const prop=(q.includes("strength")&&!q.includes("elongation"))||q.includes("strength restoration")?"Tensile Strength":q.includes("elongation recovery")?"Elongation":undefined; out.push({key:"Efficiency",label:"Minimum healing efficiency / recovery",value:Number(eff[1]),weight:1.5,property:prop}); }
-  const tm=q.match(/(?:within|under|less than|in|at most)\\s*(\\d+(?:\\.\\d+)?)\\s*(hours?|hrs?|h|days?)\\b/);
+  const tm=q.match(/(?:within|under|less than|in|at most)\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?)\b/);
   if(tm) out.push({key:"Time",label:"Maximum healing time",value:Number(tm[1])*(tm[2].startsWith("day")?24:1),weight:1});
   const vocab: Record<string,string[]>={Flexibility:["flexible","stretchable","elastic","elastomeric"],Stimulus:["autonomous","room temperature","room temp","ambient temperature","light","uv","water","pressure","mechanical","heat","thermal"],Application:["wearable electronics","wearable sensors","soft robotics","robotics","coatings","biomedical","sensors","electronics","adhesives"]};
   for(const [key,words] of Object.entries(vocab)){const hits=words.filter(w=>q.includes(w));if(hits.length)out.push({key,label:key,value:hits,weight:1});}
