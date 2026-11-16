@@ -21,6 +21,11 @@ class SearchEngineTests(unittest.TestCase):
         self.assertEqual([c["key"] for c in criteria],["Temperature","Efficiency","Flexibility"])
         self.assertEqual(criteria[0]["value"],60.0)
         self.assertEqual(criteria[1]["value"],80.0)
+        self.assertEqual(criteria[1]["property"],"Tensile Strength")
+    def test_efficiency_measured_property_must_match(self):
+        c=parse_query("at least 80% tensile strength recovery")[0]
+        self.assertEqual(status(sample(**{"Efficiency property":"Elongation"}),c),"No match")
+        self.assertEqual(status(sample(**{"Efficiency property":"Tensile Strength"}),c),"Match")
     def test_worded_thresholds(self):
         criteria=parse_query("heals below 40°C with at least 90% recovery")
         self.assertEqual([c["key"] for c in criteria],["Temperature","Efficiency"])
