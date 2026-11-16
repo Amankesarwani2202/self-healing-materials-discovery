@@ -31,7 +31,9 @@ def parse_query(query):
     temp=re.search(r"(?:≤|<=|below|under|less than|at most|no more than|up to|maximum(?: of)?)\s*(-?\d+(?:\.\d+)?)\s*°?\s*c\b",q)
     if temp: out.append({"key":"Temperature","label":"Maximum healing temperature","value":float(temp.group(1)),"weight":1.5})
     eff=re.search(r"(?:≥|>=|at least|minimum(?: of)?|min(?:imum)?|over|above|greater than)\s*(\d+(?:\.\d+)?)\s*%",q)
-    if eff: out.append({"key":"Efficiency","label":"Minimum healing efficiency / recovery","value":float(eff.group(1)),"weight":1.5})
+    if eff:
+        prop = "Tensile Strength" if re.search(r"(?:tensile )?strength recovery|strength restoration", q) else ("Elongation" if "elongation recovery" in q else None)
+        out.append({"key":"Efficiency","label":"Minimum healing efficiency / recovery","value":float(eff.group(1)),"weight":1.5,"property":prop})
     tm=re.search(r"(?:within|under|less than|in|at most)\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?)",q)
     if tm: out.append({"key":"Time","label":"Maximum healing time","value":float(tm.group(1))*(24 if tm.group(2).startswith("day") else 1),"weight":1.0})
     vocab={"Flexibility":["flexible","stretchable","elastic","elastomeric"],
@@ -53,6 +55,11 @@ def status(row,c):
         return "No match"
     if key in ("Temperature","Efficiency","Time"):
         if actual is None: return "Not reported"
+        if key == "Efficiency" and c.get("property"):
+            measured = norm(row.get("Efficiency property",""))
+            wanted = norm(c["property"])
+            if not measured: return "Not reported"
+            if wanted not in measured and measured not in wanted: return "No match"
         ok=actual<=target if key in ("Temperature","Time") else actual>=target
         return "Match" if ok else "No match"
     if not str(actual or "").strip(): return "Not reported"
