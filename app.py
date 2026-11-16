@@ -3,7 +3,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Self-Healing Materials Discovery", page_icon="🧪", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="Self-Healing Materials Discovery", page_icon="🧪", layout="wide", initial_sidebar_state="expanded")
 DATA_PATH = Path(__file__).parent / "data" / "self_healing_materials.csv"
 ALIASES = {
 "id":"ID","material/polymer name":"Material","material name":"Material","material":"Material","polymer family":"Polymer family",
@@ -70,10 +70,9 @@ def status(row,c):
     actual={"Mechanism":row["Mechanism"],"Temperature":row["__temp"],"Efficiency":row["__eff"],"Time":row["__time"],
     "Flexibility":row["Flexibility"],"Stimulus":row["Stimulus"],"Application":row["Application"]}[k]
     if k=="Mechanism":
-        if not str(actual).strip(): return "Not reported"
-        # Mechanism annotations may be recorded in the notes/evidence fields when
-        # the source CSV's normalized mechanism category is broader (for example, "Other").
-        s=norm(" ".join(str(row.get(col, "")) for col in ["Mechanism","Notes","Evidence","Advantages"]))
+        # Search source annotations so broad/empty categories do not hide reported mechanisms.
+        s=norm(" ".join(str(row.get(col, "")) for col in ["Mechanism","Notes","Evidence","Advantages","Limitations"]))
+        if not s: return "Not reported"
         return "Match" if any(norm(a) in s for x in t for a in MECH[x]) else "No match"
     if k in ("Temperature","Efficiency","Time"):
         if actual is None: return "Not reported"
@@ -119,7 +118,7 @@ st.markdown("""<style>
 .brandmark{width:42px;height:42px;border-radius:12px;background:#eaf4fb;color:#0b477b;display:flex;align-items:center;justify-content:center;font-size:1.45rem}
 .brandname{font-weight:800;font-size:1.12rem;color:#102c4c}
 .brandtag{font-size:.84rem;color:#61738a;border-left:1px solid #cbd5e1;padding-left:15px;margin-left:4px}
-.hero{border-radius:18px;padding:1.35rem 1.55rem 1.15rem;background:linear-gradient(112deg,#edf5fc 0%,#e7f2fb 58%,#d8eaf5 100%);border:1px solid #d6e5f1;margin:.45rem 0 1rem}
+.hero{border-radius:18px 18px 0 0;padding:1.35rem 1.55rem .7rem;background:linear-gradient(112deg,#edf5fc 0%,#e7f2fb 58%,#d8eaf5 100%);border:1px solid #d6e5f1;border-bottom:0;margin:.45rem 0 0}
 .hero h1{font-size:2.15rem!important;color:#0a294b;letter-spacing:-.04em;margin:0 0 .25rem}
 .hero p{color:#243e5c;margin:0 0 .9rem}
 .eyebrow{font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;font-weight:800;color:#27617f;margin-bottom:.3rem}
@@ -165,7 +164,7 @@ if page.startswith("🔎"):
             clicked=st.button("⌕  Find Matching Materials",type="primary",use_container_width=True)
         st.caption("Try an example")
         example_cols=st.columns(4)
-        examples=["Low-temperature healing","Hydrogen bonding","Flexible polymer","Disulfide exchange"]
+        examples=["Healing below 60°C","Hydrogen bonding","Flexible polymer","Metal–ligand coordination"]
         for col,example in zip(example_cols,examples):
             with col:
                 if st.button(example,use_container_width=True):
