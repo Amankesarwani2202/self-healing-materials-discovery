@@ -32,7 +32,7 @@ def parse_query(query):
     if temp: out.append({"key":"Temperature","label":"Maximum healing temperature","value":float(temp.group(1)),"weight":1.5})
     eff=re.search(r"(?:≥|>=|at least|minimum(?: of)?|min(?:imum)?|over|above|greater than)\s*(\d+(?:\.\d+)?)\s*%",q)
     if eff:
-        prop = "Tensile Strength" if re.search(r"(?:tensile )?strength recovery|strength restoration", q) else ("Elongation" if "elongation recovery" in q else None)
+        prop = "Tensile Strength" if (("strength" in q and "elongation" not in q) or "strength restoration" in q) else ("Elongation" if "elongation recovery" in q else None)
         out.append({"key":"Efficiency","label":"Minimum healing efficiency / recovery","value":float(eff.group(1)),"weight":1.5,"property":prop})
     tm=re.search(r"(?:within|under|less than|in|at most)\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?)",q)
     if tm: out.append({"key":"Time","label":"Maximum healing time","value":float(tm.group(1))*(24 if tm.group(2).startswith("day") else 1),"weight":1.0})
