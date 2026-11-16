@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 import pandas as pd
 import streamlit as st
+from search_engine import MECH, norm, number, parse_query, status, rank, shown, doi_url, score_text, sentence_start
 
 st.set_page_config(page_title="Self-Healing Materials Discovery", page_icon="🧪", layout="wide", initial_sidebar_state="expanded")
 DATA_PATH = Path(__file__).parent / "data" / "self_healing_materials.csv"
@@ -19,21 +20,6 @@ ALIASES = {
 COLS = ["ID","Material","Polymer family","Mechanism","Stimulus","Healing temperature","Healing temperature notes","Healing time",
 "Healing efficiency","Efficiency property","Tensile strength","Elongation","Flexibility","Application","Advantages","Limitations",
 "Evidence","Paper title","Authors","Year","Journal","DOI","Data collector","Date collected","Verification status","Notes"]
-MECH = {
-"metal-ligand coordination":["metal-ligand coordination","metal–ligand coordination","metal ligand coordination","coordination bond","coordination interaction","ligand interaction","ligand interactions","metal coordination","zn2+","fe3+"],
-"hydrogen bonding":["hydrogen bond","hydrogen bonding","h-bond"],"disulfide exchange":["disulfide","disulfide exchange"],
-"imine/schiff base":["imine","schiff base"],"boronic ester":["boronic ester","boronate"],"diels-alder":["diels-alder","diels alder"],
-"transesterification":["transesterification","ester exchange"],"ionic interactions":["ionic interaction","ionic interactions","ion-dipole","ion dipole"],
-"π–π stacking":["π–π","pi-pi stacking","pi pi stacking"],"chain interdiffusion":["chain interdiffusion","chain diffusion"],
-"dynamic covalent bonds":["dynamic covalent","covalent exchange"]}
-
-def norm(v):
-    return re.sub(r"\s+"," ",str(v or "").lower().replace("–","-").replace("—","-")).strip()
-def number(v):
-    if pd.isna(v) or not str(v).strip(): return None
-    m=re.search(r"-?\d+(?:\.\d+)?",str(v).replace(",",""))
-    return float(m.group()) if m else None
-@st.cache_data(show_spinner=False)
 def load_data():
     if not DATA_PATH.exists(): return pd.DataFrame(columns=COLS),"Repository CSV missing"
     raw=pd.read_csv(DATA_PATH,engine="python",quotechar='"',escapechar="\\",on_bad_lines="warn")
@@ -48,71 +34,10 @@ def load_data():
     df["__time"]=df["Healing time"].map(number)
     return df.reset_index(drop=True),f"Repository dataset · {len(df)} records"
 
-def parse_query(q):
-    q=norm(q); out=[]
-    mh=[k for k,aliases in MECH.items() if any(norm(a) in q for a in aliases)]
-    if mh: out.append({"key":"Mechanism","label":"Healing mechanism","value":mh,"weight":2.0})
-    m=re.search(r"(?:below|under|less than|at most|max(?:imum)?(?: of)?)\s*(\d+(?:\.\d+)?)\s*°?\s*c",q)
-    if m: out.append({"key":"Temperature","label":"Maximum healing temperature","value":float(m.group(1)),"weight":1.5})
-    m=re.search(r"(?:at least|minimum of|min|over|above|greater than)\s*(\d+(?:\.\d+)?)\s*%",q)
-    if m: out.append({"key":"Efficiency","label":"Minimum healing efficiency","value":float(m.group(1)),"weight":1.5})
-    m=re.search(r"(?:within|under|less than|in)\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|days?)",q)
-    if m: out.append({"key":"Time","label":"Maximum healing time","value":float(m.group(1))*(24 if m.group(2).startswith("day") else 1),"weight":1})
-    for key,words in {"Flexibility":["flexible","stretchable","elastic","elastomeric"],
-    "Stimulus":["autonomous","room temperature","light","uv","water","pressure","mechanical","heat","thermal"],
-    "Application":["wearable electronics","wearable sensors","soft robotics","robotics","coatings","biomedical","sensors","electronics","adhesives"]}.items():
-        hits=[w for w in words if w in q]
-        if hits: out.append({"key":key,"label":key,"value":hits,"weight":1})
-    return out
-
-def status(row,c):
-    k,t=c["key"],c["value"]
-    actual={"Mechanism":row["Mechanism"],"Temperature":row["__temp"],"Efficiency":row["__eff"],"Time":row["__time"],
-    "Flexibility":row["Flexibility"],"Stimulus":row["Stimulus"],"Application":row["Application"]}[k]
-    if k=="Mechanism":
-        # Search source annotations so broad/empty categories do not hide reported mechanisms.
-        s=norm(" ".join(str(row.get(col, "")) for col in ["Mechanism","Notes","Evidence","Advantages","Limitations"]))
-        if any(norm(a) in s for x in t for a in MECH[x]): return "Match"
-        category=norm(actual)
-        if category in ("", "other", "not reported", "not stated", "unknown", "n/a", "na"):
-            return "Not reported"
-        return "No match"
-    if k in ("Temperature","Efficiency","Time"):
-        if actual is None: return "Not reported"
-        ok=actual<=t if k in ("Temperature","Time") else actual>=t
-        return "Match" if ok else "No match"
-    if not str(actual or "").strip(): return "Not reported"
-    s=norm(actual)
-    if k=="Flexibility": return "Match" if any(x in s for x in t) or ("high" in s and "flex" in s) else "No match"
-    return "Match" if any(norm(x) in s for x in t) else "No match"
-
-def rank(df,criteria,required):
-    rows=[]
-    for _,r in df.iterrows():
-        checks=[(c["label"],status(r,c),c["weight"]) for c in criteria]
-        known=[x for x in checks if x[1]!="Not reported"]
-        denom=sum(x[2] for x in known)
-        score=round(100*sum(x[2] for x in known if x[1]=="Match")/denom) if denom else 0
-        failures=[label for label,s,_ in checks if label in required and s=="No match"]
-        match_type=("Exact match" if checks and all(s=="Match" for _,s,_ in checks)
-                    else ("Potential match · incomplete data" if any(s=="Match" for _,s,_ in checks) and all(s in ("Match","Not reported") for _,s,_ in checks)
-                    else ("Partial match" if any(s=="Match" for _,s,_ in checks) else "Unverified / no match")))
-        rows.append((score,checks,failures,match_type,f"{len(known)}/{len(checks)}" if checks else "—"))
-    out=df.copy()
-    out["Match score"]=[x[0] for x in rows]; out["Checks"]=[x[1] for x in rows]
-    out["Required failures"]=[x[2] for x in rows]; out["Match type"]=[x[3] for x in rows]; out["Coverage"]=[x[4] for x in rows]
-    if required: out=out[out["Required failures"].map(len)==0]
-    return out.sort_values(["Match score","__eff"],ascending=[False,False],na_position="last").reset_index(drop=True)
-def shown(v,suffix=""):
-    return "Not reported" if v is None or str(v).strip()=="" else f"{v}{suffix}"
-def doi_url(v):
-    v=str(v or "").strip()
-    return (v if v.startswith(("http://","https://")) else "https://doi.org/"+v) if v else None
-
 materials,source=load_data()
 st.markdown("""<style>
 :root{--navy:#092747;--blue:#0b477b;--teal:#2e7886;--line:#dce5ee;--muted:#64748b}
-#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.viewerBadge_container__1QSob,.stAppDeployButton{visibility:hidden}
+#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],[data-testid="stToolbar"],.viewerBadge_container__1QSob,.stAppDeployButton,.stDeployButton,div[class*="viewerBadge"],a[aria-label*="Streamlit"],a[href*="share.streamlit.io/user"],a[href*="streamlit.io/cloud"]{display:none!important;visibility:hidden!important}
 .block-container{max-width:1600px;padding:1.05rem 1.45rem 2rem}
 [data-testid="stSidebar"]{background:#092747}
 [data-testid="stSidebar"] *{color:#f4f8fc!important}
@@ -123,8 +48,8 @@ st.markdown("""<style>
 .brandmark{width:42px;height:42px;border-radius:12px;background:#eaf4fb;color:#0b477b;display:flex;align-items:center;justify-content:center;font-size:1.45rem}
 .brandname{font-weight:800;font-size:1.12rem;color:#102c4c}
 .brandtag{font-size:.84rem;color:#61738a;border-left:1px solid #cbd5e1;padding-left:15px;margin-left:4px}
-.hero{border-radius:18px 18px 0 0;padding:1.35rem 1.55rem .7rem;background:linear-gradient(112deg,#edf5fc 0%,#e7f2fb 58%,#d8eaf5 100%);border:1px solid #d6e5f1;border-bottom:0;margin:.45rem 0 0}
-.hero h1{font-size:2.15rem!important;color:#0a294b;letter-spacing:-.04em;margin:0 0 .25rem}
+.hero{border-radius:18px 18px 0 0;padding:1rem 1.3rem .45rem;background:linear-gradient(112deg,#edf5fc 0%,#e7f2fb 58%,#d8eaf5 100%);border:1px solid #d6e5f1;border-bottom:0;margin:.45rem 0 0}
+.hero h1{font-size:1.85rem!important;color:#0a294b;letter-spacing:-.04em;margin:0 0 .25rem}
 .hero p{color:#243e5c;margin:0 0 .9rem}
 .eyebrow{font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;font-weight:800;color:#27617f;margin-bottom:.3rem}
 .criteria-wrap{border:1px solid #dbe5ed;border-radius:13px;padding:.8rem 1rem;background:var(--secondary-background-color);margin:.6rem 0 1rem}
@@ -149,14 +74,14 @@ with st.sidebar:
     st.divider()
     st.markdown("### Research database")
     st.metric("Curated material systems",len(materials))
-    st.markdown("✓ Published research")
-    st.markdown("✓ Experimentally reported data")
+    st.markdown("✓ Publication-linked records")
+    st.markdown("✓ Source-reported evidence")
     st.markdown("✓ Polymer-based systems")
     st.divider()
     st.caption(source)
     st.caption("Evidence-led · Literature-backed")
 
-st.markdown('<div class="brand"><div class="brandmark">⬡</div><div class="brandname">SelfHeal Materials</div><div class="brandtag">A Research Platform for Self-Healing Materials Discovery</div><div style="margin-left:auto;color:#52677d;font-size:1.1rem">ⓘ　♧　◎</div></div>',unsafe_allow_html=True)
+st.markdown('<div class="brand"><div class="brandmark">⬡</div><div class="brandname">SelfHeal Materials</div><div class="brandtag">A Research Platform for Self-Healing Materials Discovery</div><div style="margin-left:auto;color:#52677d;font-size:.82rem">LITERATURE-BACKED DISCOVERY</div></div>',unsafe_allow_html=True)
 
 if page.startswith("🔎"):
     st.markdown('<div class="hero"><div class="eyebrow">Materials discovery workspace</div><h1>Discover Self-Healing Materials</h1><p>Search and compare polymer systems with self-healing properties, backed by published research.</p></div>',unsafe_allow_html=True)
@@ -216,23 +141,25 @@ if page.startswith("🔎"):
                 list_col,detail_col=st.columns([1.02,1.08],gap="medium")
                 with list_col:
                     st.markdown("**Ranked materials**")
-                    labels=[f"{i+1+(page_no-1)*per_page}.  {r['Material']}  ·  {r['Match score']}/100" for i,(_,r) in enumerate(batch.iterrows())]
+                    labels=[f"{i+1+(page_no-1)*per_page}. {r['Material']} · {str(r['Mechanism'])[:26]} · {shown(r['Healing temperature'],' °C')} · {shown(r['Healing efficiency'],'%')} · {score_text(r['Match score'])}" for i,(_,r) in enumerate(batch.iterrows())]
                     selected_label=st.radio("Choose a material",labels,label_visibility="collapsed",key=f"material_select_{page_no}")
                     selected=batch.iloc[labels.index(selected_label)]
                     st.caption(f"Showing {(page_no-1)*per_page+1}–{min(page_no*per_page,len(results))} of {len(results)} matching records")
                 with detail_col:
                     st.markdown(f"### {selected['Material']}")
                     score_col,match_col=st.columns([1,1])
-                    score_col.metric("Match score",f"{selected['Match score']}/100")
+                    score_col.metric("Match score",score_text(selected["Match score"]))
                     match_col.metric("Match classification",selected["Match type"])
                     overview,evidence,mechanism,comparison=st.tabs(["Overview","Evidence & Source","Mechanism","Comparison"])
                     with overview:
                         m1,m2,m3=st.columns(3)
-                        m1.metric("Healing temperature",shown(selected["Healing temperature"]," °C"))
-                        m2.metric("Healing efficiency",shown(selected["Healing efficiency"],"%"))
-                        m3.metric("Healing time",shown(selected["Healing time"]," h"))
+                        m1.metric("Healing Temperature",shown(selected["Healing temperature"]," °C"))
+                        m2.metric("Healing Efficiency",shown(selected["Healing efficiency"],"%"))
+                        m3.metric("Healing Time",shown(selected["Healing time"]," h"))
                         st.markdown("**Key takeaways**")
                         st.write(f"• Mechanism: {shown(selected['Mechanism'])}")
+                        if norm(selected["Mechanism"]) in ("other","") and selected["Notes"]:
+                            st.caption("Additional mechanism detail: "+sentence_start(selected["Notes"]))
                         st.write(f"• Stimulus: {shown(selected['Stimulus'])}")
                         st.write(f"• Flexibility: {shown(selected['Flexibility'])}")
                         st.write(f"• Application: {shown(selected['Application'])}")
@@ -251,22 +178,24 @@ if page.startswith("🔎"):
                         if url: st.markdown(f"[View publication / DOI ↗]({url})")
                         else: st.write("**DOI:** Not reported")
                         st.markdown("**Experimental evidence**")
-                        st.write(shown(selected["Evidence"]))
+                        st.write(sentence_start(shown(selected["Evidence"])))
                         st.write("**Verification status:** "+shown(selected["Verification status"]))
                         if selected["Notes"]: st.caption("Research notes: "+str(selected["Notes"]))
                     with mechanism:
                         st.write("**Reported healing mechanism**")
                         st.write(shown(selected["Mechanism"]))
                         st.write("**Healing stimulus:** "+shown(selected["Stimulus"]))
-                        st.write("**Mechanism-related advantages:** "+shown(selected["Advantages"]))
-                        st.write("**Reported limitations:** "+shown(selected["Limitations"]))
+                        st.write("**Mechanism-related advantages:** "+sentence_start(shown(selected["Advantages"])))
+                        st.write("**Reported limitations:** "+sentence_start(shown(selected["Limitations"])))
                     with comparison:
                         st.write("**Material properties**")
                         for label,value in [("Polymer family",selected["Polymer family"]),("Tensile strength",selected["Tensile strength"]),("Elongation",selected["Elongation"]),("Flexibility",selected["Flexibility"]),("Healing temperature notes",selected["Healing temperature notes"]),("Efficiency measured property",selected["Efficiency property"])]:
                             st.write(f"**{label}:** {shown(value)}")
                 with st.expander("How match scores are calculated"):
-                    st.write("The score reflects agreement with criteria recognized in your query, not predicted material performance. Reported matches earn the criterion weight; reported mismatches earn zero. Unreported values are excluded from the denominator and shown as Not reported. Essential criteria exclude records only when the source reports a mismatch.")
-                    st.write("Exact match means all requested criteria have reported matching values. Partial match means at least one criterion matches but one or more do not. Unknown values are separately identified.")
+                    st.write("The score is a query-relevance heuristic, not a prediction of material performance, safety, or evidence quality. Score = 100 × (sum of weights for matched, reported criteria) ÷ (sum of weights for all reported criteria). Unreported criteria are excluded; if no criterion has a reported value, the score is Not scorable.")
+                    st.markdown("**Criterion weights**")
+                    st.write("Healing mechanism: 2.0 · Healing temperature: 1.5 · Healing efficiency/recovery: 1.5 · Healing time: 1.0 · Flexibility: 1.0 · Stimulus: 1.0 · Application: 1.0.")
+                    st.write("Exact match: every requested criterion is reported and matches. Potential match: at least one matches and remaining criteria are unreported. Partial match: at least one criterion matches and at least one reported criterion does not. Essential criteria exclude records only when a reported mismatch exists; unknown values remain visible.")
     else:
         st.markdown("### Start exploring the literature")
         st.caption("Enter a research requirement above or choose an example query. Search results are ranked against the criteria recognized from your description.")
@@ -304,7 +233,7 @@ elif page.startswith("⬡"):
     st.markdown("#### 4. Inspect evidence")
     st.write("Review the source paper, DOI, reported experimental evidence, verification status, and limitations before using a result in research.")
     st.markdown("#### Understanding match scores")
-    st.write("Scores are relevance heuristics, not predictions of healing performance or evidence quality. A missing value is labelled Not reported and excluded from the score denominator.")
+    st.write("Score = 100 × matched criterion weights ÷ weights for all criteria with reported values. Mechanism = 2.0; temperature and efficiency = 1.5 each; time, flexibility, stimulus and application = 1.0 each. A reported mismatch earns zero; an unreported value is excluded. If no criterion can be scored, the result is Not scorable. Scores are relevance heuristics, not predictions of performance.")
 
 else:
     st.markdown('<div class="eyebrow">About this project</div><h1>SelfHeal Materials</h1><p class="sub">A research discovery interface for exploring self-healing polymer systems using curated literature data.</p>',unsafe_allow_html=True)
