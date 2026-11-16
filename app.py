@@ -107,115 +107,211 @@ def doi_url(v):
 
 materials,source=load_data()
 st.markdown("""<style>
+:root{--navy:#092747;--blue:#0b477b;--teal:#2e7886;--line:#dce5ee;--muted:#64748b}
 #MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.viewerBadge_container__1QSob,.stAppDeployButton{visibility:hidden}
-.block-container{max-width:1480px;padding-top:1.15rem}
-.topline{font-size:.75rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:#5c7f9b}
-h1{font-size:2rem!important;letter-spacing:-.03em;margin:.1rem 0}
-.sub{opacity:.72;font-size:.94rem}
-.result{border:1px solid rgba(128,128,128,.3);border-radius:11px;padding:.7rem;margin:.2rem 0}
+.block-container{max-width:1600px;padding:1.05rem 1.45rem 2rem}
+[data-testid="stSidebar"]{background:#092747}
+[data-testid="stSidebar"] *{color:#f4f8fc!important}
+[data-testid="stSidebar"] [data-testid="stMetricValue"]{font-size:2rem}
+[data-testid="stSidebar"] .stRadio label{padding:.55rem .65rem;border-radius:9px}
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p{color:#e6eef6}
+.brand{display:flex;align-items:center;gap:12px;padding:.15rem 0 .9rem;border-bottom:1px solid var(--line);margin-bottom:1rem}
+.brandmark{width:42px;height:42px;border-radius:12px;background:#eaf4fb;color:#0b477b;display:flex;align-items:center;justify-content:center;font-size:1.45rem}
+.brandname{font-weight:800;font-size:1.12rem;color:#102c4c}
+.brandtag{font-size:.84rem;color:#61738a;border-left:1px solid #cbd5e1;padding-left:15px;margin-left:4px}
+.hero{border-radius:18px;padding:1.35rem 1.55rem 1.15rem;background:linear-gradient(112deg,#edf5fc 0%,#e7f2fb 58%,#d8eaf5 100%);border:1px solid #d6e5f1;margin:.45rem 0 1rem}
+.hero h1{font-size:2.15rem!important;color:#0a294b;letter-spacing:-.04em;margin:0 0 .25rem}
+.hero p{color:#243e5c;margin:0 0 .9rem}
+.eyebrow{font-size:.72rem;letter-spacing:.13em;text-transform:uppercase;font-weight:800;color:#27617f;margin-bottom:.3rem}
+.criteria-wrap{border:1px solid #dbe5ed;border-radius:13px;padding:.8rem 1rem;background:var(--secondary-background-color);margin:.6rem 0 1rem}
+.criteria-chip{display:inline-block;border-radius:30px;padding:.35rem .7rem;margin:.2rem .25rem .1rem 0;background:#e5f5ed;color:#155b3e;font-size:.82rem;font-weight:650}
+.panel{border:1px solid #dce5ee;border-radius:14px;padding:.85rem 1rem;background:var(--secondary-background-color);margin-bottom:.55rem}
+.material-title{font-size:1.03rem;font-weight:750;color:var(--text-color)}
+.material-sub{font-size:.83rem;color:#64748b}
+.score{font-size:1.45rem;font-weight:800;color:#0b477b}
+.section-kicker{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;font-weight:800;color:#64748b}
+[data-testid="stMetric"]{background:#f7fafc;border:1px solid #e1e9f0;border-radius:11px;padding:.55rem .7rem}
+[data-testid="stMetricLabel"]{font-size:.78rem}
+.stButton>button[kind="primary"]{background:#0b477b;border-color:#0b477b}
+div[data-testid="stTabs"] button{font-weight:650}
+@media(max-width:900px){.block-container{padding:.7rem}.hero h1{font-size:1.55rem!important}.brandtag{display:none}}
 </style>""",unsafe_allow_html=True)
-st.markdown('<div class="topline">Evidence-led literature discovery</div><h1>Self-Healing Materials Discovery</h1><div class="sub">Search, compare, and trace material systems to published research evidence.</div>',unsafe_allow_html=True)
-discover,compare,database,method=st.tabs(["Discover materials","Compare","Materials database","Methodology"])
-with discover:
-    query=st.text_area("Describe the material or healing behaviour you need",placeholder="e.g. Polymer that heals through metal–ligand coordination, preferably at room temperature",height=82)
-    go,helpcol=st.columns([1,3])
-    with go: clicked=st.button("Search materials",type="primary",use_container_width=True)
-    with helpcol: st.caption("Try mechanism names, temperature or efficiency limits, healing time, flexibility, stimulus, or application.")
+
+with st.sidebar:
+    st.markdown("## 🧬 SelfHeal Materials")
+    st.caption("RESEARCH DISCOVERY PLATFORM")
+    st.divider()
+    page=st.radio("Navigation",["🔎  Discover","⚖️  Compare","▤  Materials Database","⬡  How It Works","ⓘ  About"],label_visibility="collapsed")
+    st.divider()
+    st.markdown("### Research database")
+    st.metric("Curated material systems",len(materials))
+    st.markdown("✓ Published research")
+    st.markdown("✓ Experimentally reported data")
+    st.markdown("✓ Polymer-based systems")
+    st.divider()
+    st.caption(source)
+    st.caption("Evidence-led · Literature-backed")
+
+st.markdown('<div class="brand"><div class="brandmark">⬡</div><div class="brandname">SelfHeal Materials</div><div class="brandtag">A Research Platform for Self-Healing Materials Discovery</div><div style="margin-left:auto;color:#52677d;font-size:1.1rem">ⓘ　♧　◎</div></div>',unsafe_allow_html=True)
+
+if page.startswith("🔎"):
+    st.markdown('<div class="hero"><div class="eyebrow">Materials discovery workspace</div><h1>Discover Self-Healing Materials</h1><p>Search and compare polymer systems with self-healing properties, backed by published research.</p></div>',unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("**Describe your ideal material**")
+        qcol,bcol=st.columns([5,1.35],vertical_alignment="bottom")
+        with qcol:
+            query=st.text_input("Search criteria",value=st.session_state.get("query",""),placeholder="e.g., A flexible polymer that heals below 60°C through metal–ligand coordination",label_visibility="collapsed")
+        with bcol:
+            clicked=st.button("⌕  Find Matching Materials",type="primary",use_container_width=True)
+        st.caption("Try an example")
+        example_cols=st.columns(4)
+        examples=["Low-temperature healing","Hydrogen bonding","Flexible polymer","Disulfide exchange"]
+        for col,example in zip(example_cols,examples):
+            with col:
+                if st.button(example,use_container_width=True):
+                    st.session_state["query"]=example
+                    st.session_state["criteria"]=parse_query(example)
+                    st.session_state["searched"]=True
+                    st.session_state["required"]=[]
+                    st.rerun()
     if clicked:
         st.session_state["query"]=query
         st.session_state["criteria"]=parse_query(query)
         st.session_state["searched"]=True
         st.session_state["required"]=[]
+        st.session_state.pop("must_have",None)
     if st.session_state.get("searched"):
         criteria=st.session_state.get("criteria",[])
         if not criteria:
-            st.info("No structured criterion was recognized. Try a mechanism such as metal–ligand coordination, a numeric limit, or a property. You can still search every record in the Materials database tab.")
+            st.warning("We couldn't identify a supported structured criterion in that query. Try a healing mechanism, temperature limit, healing-efficiency threshold, healing time, flexibility, stimulus, or application.")
         else:
-            st.markdown("**Your search criteria**")
-            st.write(" · ".join(c["label"]+": "+(", ".join(c["value"]) if isinstance(c["value"],list) else str(c["value"])) for c in criteria))
-            required=st.multiselect("Essential criteria (reported mismatches are excluded; unknown values remain visible)",[c["label"] for c in criteria],default=st.session_state.get("required",[]),key="must_have")
+            st.markdown('<div class="criteria-wrap"><b>◎　Your Search Criteria</b><br/>',unsafe_allow_html=True)
+            chips=[]
+            for c in criteria:
+                val=", ".join(c["value"]) if isinstance(c["value"],list) else str(c["value"])
+                chips.append(f'<span class="criteria-chip">✓　{c["label"]}: {val}</span>')
+            st.markdown("".join(chips)+"</div>",unsafe_allow_html=True)
+            required=st.multiselect("Essential requirements · reported mismatches are excluded; unknown values remain visible", [c["label"] for c in criteria],default=st.session_state.get("required",[]),key="must_have")
             st.session_state["required"]=required
             results=rank(materials,criteria,required) if not materials.empty else materials.copy()
-            st.markdown(f"### Matching materials · {len(results)} records")
-            if results.empty: st.warning("No records meet all essential criteria. Remove an essential requirement to explore partial matches.")
+            heading_col,sort_col=st.columns([3,1.2],vertical_alignment="center")
+            with heading_col: st.markdown(f"### ▤　Matching Materials <span style='font-size:.85rem;color:#64748b;font-weight:400'>({len(results)} results)</span>",unsafe_allow_html=True)
+            with sort_col:
+                sort=st.selectbox("Sort by",["Match Score (High to Low)","Healing Efficiency","Healing Temperature","Material Name"],label_visibility="collapsed")
+            if not results.empty:
+                if sort=="Healing Efficiency": results=results.sort_values("__eff",ascending=False,na_position="last")
+                elif sort=="Healing Temperature": results=results.sort_values("__temp",ascending=True,na_position="last")
+                elif sort=="Material Name": results=results.sort_values("Material")
+            if results.empty:
+                st.info("No materials meet all selected essential criteria. Remove an essential requirement to explore partial matches.")
             else:
-                per_page=20; pages=max(1,(len(results)+per_page-1)//per_page)
-                page=st.number_input("Results page",min_value=1,max_value=pages,value=1,step=1)
-                batch=results.iloc[(page-1)*per_page:page*per_page]
-                left,right=st.columns([.95,1.6],gap="large")
-                with left:
+                per_page=20
+                pages=max(1,(len(results)+per_page-1)//per_page)
+                page_no=st.number_input("Results page",min_value=1,max_value=pages,value=1,step=1,horizontal=True)
+                batch=results.iloc[(page_no-1)*per_page:page_no*per_page]
+                list_col,detail_col=st.columns([1.02,1.08],gap="medium")
+                with list_col:
                     st.markdown("**Ranked materials**")
-                    labels=[f"{r['Material']} · {r['Match score']}/100" for _,r in batch.iterrows()]
-                    choice=st.radio("Choose a material",labels,label_visibility="collapsed")
-                    idx=labels.index(choice); selected=batch.iloc[idx]
-                    st.caption(f"Showing {(page-1)*per_page+1}–{min(page*per_page,len(results))} of {len(results)}")
-                with right:
-                    st.markdown("**Selected material**")
-                    st.markdown(f"## {selected['Material']}")
-                    st.caption(f"{selected['ID']} · {shown(selected['Polymer family'])}")
-                    x,y,z=st.columns(3)
-                    x.metric("Match score",f"{selected['Match score']}/100")
-                    y.metric("Match type",selected["Match type"])
-                    z.metric("Criteria reported",selected["Coverage"])
-                    x,y,z=st.columns(3)
-                    x.metric("Healing temperature",shown(selected["Healing temperature"]," °C"))
-                    y.metric("Healing efficiency",shown(selected["Healing efficiency"],"%"))
-                    z.metric("Healing time",shown(selected["Healing time"]," h"))
-                    st.write(f"**Healing mechanism:** {shown(selected['Mechanism'])}")
-                    st.write(f"**Stimulus:** {shown(selected['Stimulus'])} · **Application:** {shown(selected['Application'])}")
-                    st.write(f"**Flexibility:** {shown(selected['Flexibility'])} · **Efficiency measured:** {shown(selected['Efficiency property'])}")
-                    st.markdown("**Requirement assessment**")
-                    for label,s,_ in selected["Checks"]:
-                        icon="✓" if s=="Match" else ("—" if s=="Not reported" else "✕")
-                        st.write(f"{icon} **{label}:** {s}")
-                    if selected["Advantages"]: st.write("**Reported advantages:** "+str(selected["Advantages"]))
-                    if selected["Limitations"]: st.write("**Reported limitations:** "+str(selected["Limitations"]))
-                    with st.expander("Research paper and experimental evidence",expanded=True):
-                        st.write("**Paper:** "+shown(selected["Paper title"]))
+                    labels=[f"{i+1+(page_no-1)*per_page}.  {r['Material']}  ·  {r['Match score']}/100" for i,(_,r) in enumerate(batch.iterrows())]
+                    selected_label=st.radio("Choose a material",labels,label_visibility="collapsed",key=f"material_select_{page_no}")
+                    selected=batch.iloc[labels.index(selected_label)]
+                    st.caption(f"Showing {(page_no-1)*per_page+1}–{min(page_no*per_page,len(results))} of {len(results)} matching records")
+                with detail_col:
+                    st.markdown(f"### {selected['Material']}")
+                    score_col,match_col=st.columns([1,1])
+                    score_col.metric("Match score",f"{selected['Match score']}/100")
+                    match_col.metric("Match classification",selected["Match type"])
+                    overview,evidence,mechanism,comparison=st.tabs(["Overview","Evidence & Source","Mechanism","Comparison"])
+                    with overview:
+                        m1,m2,m3=st.columns(3)
+                        m1.metric("Healing temperature",shown(selected["Healing temperature"]," °C"))
+                        m2.metric("Healing efficiency",shown(selected["Healing efficiency"],"%"))
+                        m3.metric("Healing time",shown(selected["Healing time"]," h"))
+                        st.markdown("**Key takeaways**")
+                        st.write(f"• Mechanism: {shown(selected['Mechanism'])}")
+                        st.write(f"• Stimulus: {shown(selected['Stimulus'])}")
+                        st.write(f"• Flexibility: {shown(selected['Flexibility'])}")
+                        st.write(f"• Application: {shown(selected['Application'])}")
+                        st.markdown("**Requirement assessment**")
+                        for label,s,_ in selected["Checks"]:
+                            icon="✓" if s=="Match" else ("—" if s=="Not reported" else "✕")
+                            st.write(f"{icon} **{label}:** {s}")
+                        st.caption(f"Criteria with reported values: {selected['Coverage']}")
+                    with evidence:
+                        st.markdown("**Research publication**")
+                        st.write("**Paper title:** "+shown(selected["Paper title"]))
                         st.write("**Authors:** "+shown(selected["Authors"]))
-                        st.write("**Year / journal:** "+shown(selected["Year"])+" · "+shown(selected["Journal"]))
-                        st.write("**Experimental evidence:** "+shown(selected["Evidence"]))
+                        st.write("**Year:** "+shown(selected["Year"]))
+                        st.write("**Journal:** "+shown(selected["Journal"]))
+                        url=doi_url(selected["DOI"])
+                        if url: st.markdown(f"[View publication / DOI ↗]({url})")
+                        else: st.write("**DOI:** Not reported")
+                        st.markdown("**Experimental evidence**")
+                        st.write(shown(selected["Evidence"]))
                         st.write("**Verification status:** "+shown(selected["Verification status"]))
-                        link=doi_url(selected["DOI"])
-                        if link: st.markdown(f"[Open publication / DOI]({link})")
-                        else: st.write("**DOI / paper link:** Not reported")
-                        if selected["Notes"]: st.caption("Data notes: "+str(selected["Notes"]))
-            with st.expander("How the score works"):
-                st.write("The score measures agreement with criteria recognized in your query, not predicted healing performance. A reported match earns its criterion weight; a reported mismatch earns zero. Unreported values are excluded from the score denominator and shown as Not reported. Coverage shows how many criteria have reported values.")
-                st.write("Exact match means every evaluated criterion matches. Partial match means at least one evaluated criterion matches and at least one does not. Unknown values are shown separately.")
-with compare:
-    st.markdown("### Compare material systems")
-    st.caption("Compare up to four records using values from the curated dataset.")
+                        if selected["Notes"]: st.caption("Research notes: "+str(selected["Notes"]))
+                    with mechanism:
+                        st.write("**Reported healing mechanism**")
+                        st.write(shown(selected["Mechanism"]))
+                        st.write("**Healing stimulus:** "+shown(selected["Stimulus"]))
+                        st.write("**Mechanism-related advantages:** "+shown(selected["Advantages"]))
+                        st.write("**Reported limitations:** "+shown(selected["Limitations"]))
+                    with comparison:
+                        st.write("**Material properties**")
+                        for label,value in [("Polymer family",selected["Polymer family"]),("Tensile strength",selected["Tensile strength"]),("Elongation",selected["Elongation"]),("Flexibility",selected["Flexibility"]),("Healing temperature notes",selected["Healing temperature notes"]),("Efficiency measured property",selected["Efficiency property"])]:
+                            st.write(f"**{label}:** {shown(value)}")
+                with st.expander("How match scores are calculated"):
+                    st.write("The score reflects agreement with criteria recognized in your query, not predicted material performance. Reported matches earn the criterion weight; reported mismatches earn zero. Unreported values are excluded from the denominator and shown as Not reported. Essential criteria exclude records only when the source reports a mismatch.")
+                    st.write("Exact match means all requested criteria have reported matching values. Partial match means at least one criterion matches but one or more do not. Unknown values are separately identified.")
+    else:
+        st.markdown("### Start exploring the literature")
+        st.caption("Enter a research requirement above or choose an example query. Search results are ranked against the criteria recognized from your description.")
+
+elif page.startswith("⚖️"):
+    st.markdown('<div class="eyebrow">Research workspace</div><h1>Compare Materials</h1><p class="sub">Compare reported properties across up to four material systems.</p>',unsafe_allow_html=True)
     names=materials["Material"].tolist() if not materials.empty else []
-    selected_names=st.multiselect("Select materials",names,max_selections=4)
+    selected_names=st.multiselect("Select materials to compare",names,max_selections=4)
     if selected_names:
         fields=["ID","Polymer family","Mechanism","Stimulus","Healing temperature","Healing temperature notes","Healing time","Healing efficiency","Efficiency property","Tensile strength","Elongation","Flexibility","Application","Advantages","Limitations","Paper title","Authors","Year","Journal","DOI","Evidence","Verification status"]
         view=materials[materials["Material"].isin(selected_names)].set_index("Material")[fields].T
         st.dataframe(view.replace("", "Not reported").fillna("Not reported"),use_container_width=True,height=680)
-with database:
-    st.markdown("### Materials database")
-    st.caption(source+" · Search all records and fields.")
-    term=st.text_input("Search the database",placeholder="ligand, disulfide, polyurethane, wearable...")
+    else: st.info("Choose two or more materials to compare their reported properties side by side.")
+
+elif page.startswith("▤"):
+    st.markdown('<div class="eyebrow">Curated literature collection</div><h1>Materials Database</h1><p class="sub">Explore the available self-healing material systems and their source information.</p>',unsafe_allow_html=True)
+    st.metric("Curated material systems",len(materials))
+    term=st.text_input("Search materials and research fields",placeholder="Try ligand, disulfide, polyurethane, DOI, application...")
     view=materials.copy()
     if term:
         needle=norm(term)
         mask=view[COLS].apply(lambda row:needle in " ".join(map(str,row.values)).lower(),axis=1)
         view=view[mask]
     st.caption(f"{len(view)} records")
-    st.dataframe(view[COLS].replace("", "Not reported"),use_container_width=True,height=650)
-with method:
-    st.markdown("### Transparent ranking methodology")
-    st.write("The platform extracts supported criteria from the query and compares them with corresponding fields in the literature dataset.")
-    st.markdown("""
-**Match score:** For each criterion with a reported value, a match earns its criterion weight and a mismatch earns zero. The score is the weighted proportion of evaluated criteria that match, scaled to 100. Healing mechanism has a higher default weight than descriptive preferences. Numeric thresholds follow the requested direction.
+    st.dataframe(view[COLS].replace("", "Not reported"),use_container_width=True,height=680)
 
-**Missing information:** A missing value is shown as Not reported and excluded from the score denominator. It is not treated as a poor result. Criteria coverage indicates how many requested properties have reported values.
+elif page.startswith("⬡"):
+    st.markdown('<div class="eyebrow">Platform guide</div><h1>How It Works</h1><p class="sub">A transparent workflow for literature-backed material discovery.</p>',unsafe_allow_html=True)
+    st.markdown("#### 1. Describe your research requirements")
+    st.write("Enter a healing mechanism, property, numeric threshold, stimulus, or application. The search parser identifies supported criteria from the query.")
+    st.markdown("#### 2. Review matching materials")
+    st.write("Each material is assessed criterion by criterion. Results are ranked by weighted agreement with the criteria that have reported values.")
+    st.markdown("#### 3. Set essential requirements")
+    st.write("You can mark criteria as essential. A reported mismatch excludes a material; missing information remains unknown and is not silently treated as failure.")
+    st.markdown("#### 4. Inspect evidence")
+    st.write("Review the source paper, DOI, reported experimental evidence, verification status, and limitations before using a result in research.")
+    st.markdown("#### Understanding match scores")
+    st.write("Scores are relevance heuristics, not predictions of healing performance or evidence quality. A missing value is labelled Not reported and excluded from the score denominator.")
 
-**Essential vs preferred:** Mark extracted criteria as essential in the Discover tab. A reported mismatch against an essential criterion excludes that record. An unreported value remains visible as unknown rather than being silently rejected.
+else:
+    st.markdown('<div class="eyebrow">About this project</div><h1>SelfHeal Materials</h1><p class="sub">A research discovery interface for exploring self-healing polymer systems using curated literature data.</p>',unsafe_allow_html=True)
+    st.markdown("### Research-first principles")
+    st.write("- Literature-backed records and traceable source information.")
+    st.write("- Missing experimental values are identified as Not reported.")
+    st.write("- Match scores describe query relevance, not experimental performance.")
+    st.write("- Original publications remain the authoritative source for scientific conclusions.")
+    st.markdown("### Dataset")
+    st.write(source)
+    st.caption("The platform presents curated source data; it does not generate or infer missing experimental measurements.")
 
-**Scientific limitations:** This is a transparent relevance heuristic, not an ML prediction, evidence-quality score, or guarantee of experimental performance. It depends on the completeness and accuracy of curated records. Consult the original publication before drawing scientific conclusions.
-
-**Data provenance:** Records are loaded from the repository CSV. The app displays reported values and source details; it does not generate missing experimental measurements.
-""")
 st.divider()
-st.caption("Self-Healing Materials Discovery · Literature-backed research tool · Verify experimental claims against the original publication.")
+st.caption("SelfHeal Materials · Literature-backed research discovery · Verify experimental claims against the original publication.")
