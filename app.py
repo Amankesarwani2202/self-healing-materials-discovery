@@ -72,8 +72,11 @@ def status(row,c):
     if k=="Mechanism":
         # Search source annotations so broad/empty categories do not hide reported mechanisms.
         s=norm(" ".join(str(row.get(col, "")) for col in ["Mechanism","Notes","Evidence","Advantages","Limitations"]))
-        if not s: return "Not reported"
-        return "Match" if any(norm(a) in s for x in t for a in MECH[x]) else "No match"
+        if any(norm(a) in s for x in t for a in MECH[x]): return "Match"
+        category=norm(actual)
+        if category in ("", "other", "not reported", "not stated", "unknown", "n/a", "na"):
+            return "Not reported"
+        return "No match"
     if k in ("Temperature","Efficiency","Time"):
         if actual is None: return "Not reported"
         ok=actual<=t if k in ("Temperature","Time") else actual>=t
@@ -91,7 +94,9 @@ def rank(df,criteria,required):
         denom=sum(x[2] for x in known)
         score=round(100*sum(x[2] for x in known if x[1]=="Match")/denom) if denom else 0
         failures=[label for label,s,_ in checks if label in required and s=="No match"]
-        match_type="Exact match" if checks and all(s=="Match" for _,s,_ in checks) else ("Partial match" if any(s=="Match" for _,s,_ in checks) else "Unverified / no match")
+        match_type=("Exact match" if checks and all(s=="Match" for _,s,_ in checks)
+                    else ("Potential match · incomplete data" if any(s=="Match" for _,s,_ in checks) and all(s in ("Match","Not reported") for _,s,_ in checks)
+                    else ("Partial match" if any(s=="Match" for _,s,_ in checks) else "Unverified / no match")))
         rows.append((score,checks,failures,match_type,f"{len(known)}/{len(checks)}" if checks else "—"))
     out=df.copy()
     out["Match score"]=[x[0] for x in rows]; out["Checks"]=[x[1] for x in rows]
@@ -206,7 +211,7 @@ if page.startswith("🔎"):
             else:
                 per_page=20
                 pages=max(1,(len(results)+per_page-1)//per_page)
-                page_no=st.number_input("Results page",min_value=1,max_value=pages,value=1,step=1,horizontal=True)
+                page_no=st.number_input("Results page",min_value=1,max_value=pages,value=1,step=1,label_visibility="collapsed")
                 batch=results.iloc[(page_no-1)*per_page:page_no*per_page]
                 list_col,detail_col=st.columns([1.02,1.08],gap="medium")
                 with list_col:
