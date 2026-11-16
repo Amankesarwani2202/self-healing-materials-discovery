@@ -37,7 +37,7 @@ def load_data():
 materials,source=load_data()
 st.markdown("""<style>
 :root{--navy:#092747;--blue:#0b477b;--teal:#2e7886;--line:#dce5ee;--muted:#64748b}
-#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],[data-testid="stToolbar"],.viewerBadge_container__1QSob,.stAppDeployButton,.stDeployButton,div[class*="viewerBadge"],a[aria-label*="Streamlit"]{display:none!important;visibility:hidden!important}
+#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],[data-testid="stToolbar"],.viewerBadge_container__1QSob,.stAppDeployButton,.stDeployButton,div[class*="viewerBadge"],a[aria-label*="Streamlit"],a[href*="share.streamlit.io/user"],a[href*="streamlit.io/cloud"]{display:none!important;visibility:hidden!important}
 .block-container{max-width:1600px;padding:1.05rem 1.45rem 2rem}
 [data-testid="stSidebar"]{background:#092747}
 [data-testid="stSidebar"] *{color:#f4f8fc!important}
@@ -81,7 +81,7 @@ with st.sidebar:
     st.caption(source)
     st.caption("Evidence-led · Literature-backed")
 
-st.markdown('<div class="brand"><div class="brandmark">⬡</div><div class="brandname">SelfHeal Materials</div><div class="brandtag">A Research Platform for Self-Healing Materials Discovery</div><div style="margin-left:auto;color:#52677d;font-size:1.1rem">ⓘ　♧　◎</div></div>',unsafe_allow_html=True)
+st.markdown('<div class="brand"><div class="brandmark">⬡</div><div class="brandname">SelfHeal Materials</div><div class="brandtag">A Research Platform for Self-Healing Materials Discovery</div><div style="margin-left:auto;color:#52677d;font-size:.82rem">LITERATURE-BACKED DISCOVERY</div></div>',unsafe_allow_html=True)
 
 if page.startswith("🔎"):
     st.markdown('<div class="hero"><div class="eyebrow">Materials discovery workspace</div><h1>Discover Self-Healing Materials</h1><p>Search and compare polymer systems with self-healing properties, backed by published research.</p></div>',unsafe_allow_html=True)
@@ -158,6 +158,8 @@ if page.startswith("🔎"):
                         m3.metric("Healing Time",shown(selected["Healing time"]," h"))
                         st.markdown("**Key takeaways**")
                         st.write(f"• Mechanism: {shown(selected['Mechanism'])}")
+                        if norm(selected["Mechanism"]) in ("other","") and selected["Notes"]:
+                            st.caption("Additional mechanism detail: "+sentence_start(selected["Notes"]))
                         st.write(f"• Stimulus: {shown(selected['Stimulus'])}")
                         st.write(f"• Flexibility: {shown(selected['Flexibility'])}")
                         st.write(f"• Application: {shown(selected['Application'])}")
