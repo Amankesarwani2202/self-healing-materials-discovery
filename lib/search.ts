@@ -1,4 +1,4 @@
-export type Material = Record<string, string> & {
+export type Material = { [key: string]: unknown } & {
   id: string; material: string; mechanism: string; stimulus: string;
   healingTemperature: string; healingTime: string; healingEfficiency: string;
   paperTitle: string; doi: string; evidence: string; matchScore?: number | null;
