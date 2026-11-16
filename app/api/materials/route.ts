@@ -19,7 +19,7 @@ const aliases: Record<string,string> = {
 "doi/link":"doi","data collector":"dataCollector","date collected":"dateCollected",
 "verification status":"verificationStatus","notes/uncertainty flags":"notes"
 };
-function normalizeHeader(s:string){return s.toLowerCase().replace(/[–—]/g,"-").replace(/\\s+/g," ").trim();}
+function normalizeHeader(s:string){return s.toLowerCase().replace(/[–—]/g,"-").replace(/\s+/g," ").trim();}
 export async function GET(){
   try{
     const file=path.join(process.cwd(),"data","self_healing_materials.csv");
