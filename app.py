@@ -71,7 +71,9 @@ def status(row,c):
     "Flexibility":row["Flexibility"],"Stimulus":row["Stimulus"],"Application":row["Application"]}[k]
     if k=="Mechanism":
         if not str(actual).strip(): return "Not reported"
-        s=norm(actual)
+        # Mechanism annotations may be recorded in the notes/evidence fields when
+        # the source CSV's normalized mechanism category is broader (for example, "Other").
+        s=norm(" ".join(str(row.get(col, "")) for col in ["Mechanism","Notes","Evidence","Advantages"]))
         return "Match" if any(norm(a) in s for x in t for a in MECH[x]) else "No match"
     if k in ("Temperature","Efficiency","Time"):
         if actual is None: return "Not reported"
@@ -90,7 +92,7 @@ def rank(df,criteria,required):
         denom=sum(x[2] for x in known)
         score=round(100*sum(x[2] for x in known if x[1]=="Match")/denom) if denom else 0
         failures=[label for label,s,_ in checks if label in required and s=="No match"]
-        match_type="Exact match" if known and all(s=="Match" for _,s,_ in known) else ("Partial match" if any(s=="Match" for _,s,_ in known) else "Unverified / no match")
+        match_type="Exact match" if checks and all(s=="Match" for _,s,_ in checks) else ("Partial match" if any(s=="Match" for _,s,_ in checks) else "Unverified / no match")
         rows.append((score,checks,failures,match_type,f"{len(known)}/{len(checks)}" if checks else "—"))
     out=df.copy()
     out["Match score"]=[x[0] for x in rows]; out["Checks"]=[x[1] for x in rows]
@@ -105,7 +107,7 @@ def doi_url(v):
 
 materials,source=load_data()
 st.markdown("""<style>
-#MainMenu,footer,[data-testid="stStatusWidget"],.viewerBadge_container__1QSob{visibility:hidden}
+#MainMenu,footer,[data-testid="stStatusWidget"],[data-testid="stAppDeployButton"],.viewerBadge_container__1QSob,.stAppDeployButton{visibility:hidden}
 .block-container{max-width:1480px;padding-top:1.15rem}
 .topline{font-size:.75rem;font-weight:750;letter-spacing:.14em;text-transform:uppercase;color:#5c7f9b}
 h1{font-size:2rem!important;letter-spacing:-.03em;margin:.1rem 0}
